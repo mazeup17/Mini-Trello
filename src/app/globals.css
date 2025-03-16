@@ -1,2 +1,6 @@
 @import 'tailwindcss';
 @plugin "daisyui";
+
+.transition-height {
+  transition-property: height, min-height;
+}
