@@ -2,53 +2,24 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-
+import { createTask, updateTask, deleteTask } from '@/app/utils/tasks';
 import BoardLoading from '@/app/components/board/BoardLoading';
 import BoardError from '@/app/components/board/BoardError';
 import TaskColumns from '@/app/components/board/TaskColumns';
 import AddTaskModal from '@/app/components/board/AddTaskModal';
 import EditTaskModal from '@/app/components/board/EditTaskModal';
 import DeleteTaskModal from '@/app/components/board/DeleteTaskModal';
+import React from 'react';
 
-const BoardPage = () => {
-  const { id } = useParams();
+export default function BoardPage({ params }) {
+  // Unwrap params using React.use() to fix the warning
+  const unwrappedParams = React.use(params);
+  const { id } = unwrappedParams;
+
   const [board, setBoard] = useState(null);
+  const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // Tasks state (would come from API)
-  const [tasks, setTasks] = useState([
-    {
-      id: 'task1',
-      title: 'Créer un design',
-      description: 'UI/UX du projet',
-      status: 'todo',
-    },
-    {
-      id: 'task2',
-      title: 'Implémenter le backend',
-      description: "API pour l'application",
-      status: 'todo',
-    },
-    {
-      id: 'task3',
-      title: 'Configurer CI/CD',
-      description: null,
-      status: 'in-progress',
-    },
-    {
-      id: 'task4',
-      title: 'Documentation',
-      description: "Guide d'utilisation",
-      status: 'in-progress',
-    },
-    {
-      id: 'task5',
-      title: 'Setup du projet',
-      description: 'Installation et configuration',
-      status: 'done',
-    },
-  ]);
 
   // Define the columns
   const columns = [
@@ -58,19 +29,36 @@ const BoardPage = () => {
   ];
 
   useEffect(() => {
-    // Simulate API fetch
+    // Fetch board and tasks from API
     const fetchData = async () => {
       try {
-        // In real app, this would be an API call
-        setBoard({
-          id,
-          name: 'Développement Application Mobile',
-        });
+        // Fetch board details
+        const boardResponse = await fetch(`/api/board/${id}`);
+        if (!boardResponse.ok) {
+          const status = boardResponse.status;
+          throw new Error(`Échec du chargement du tableau (${status})`);
+        }
+        const boardData = await boardResponse.json();
+        setBoard(boardData);
+
+        // Fetch tasks for this board
+        const tasksResponse = await fetch(`/api/board/${id}/tasks`);
+        if (!tasksResponse.ok) {
+          const status = tasksResponse.status;
+          const errorText = await tasksResponse.text();
+          console.error('Task response error:', errorText);
+          throw new Error(
+            `Échec du chargement des tâches (${status}): ${errorText}`
+          );
+        }
+        const tasksData = await tasksResponse.json();
+        setTasks(tasksData);
+
         setLoading(false);
       } catch (error) {
-        console.error(error);
+        console.error('Erreur:', error);
         setError({
-          message: 'Impossible de récupérer les données du tableau.',
+          message: error.message || 'Impossible de récupérer les données.',
         });
         setLoading(false);
       }
@@ -80,25 +68,37 @@ const BoardPage = () => {
   }, [id]);
 
   // Handlers for task operations
-  const handleAddTask = (taskData) => {
-    const newTask = {
-      id: `task${Date.now()}`,
-      ...taskData,
-    };
-
-    setTasks([...tasks, newTask]);
+  const handleAddTask = async (taskData) => {
+    try {
+      const newTask = await createTask(id, taskData);
+      setTasks([...tasks, newTask]);
+    } catch (error) {
+      console.error('Error adding task:', error);
+    }
   };
 
-  const handleEditTask = (updatedTask) => {
-    setTasks(
-      tasks.map((task) =>
-        task.id === updatedTask.id ? { ...task, ...updatedTask } : task
-      )
-    );
+  const handleEditTask = async (updatedTaskData) => {
+    try {
+      const updatedTask = await updateTask(
+        id,
+        updatedTaskData.id,
+        updatedTaskData
+      );
+      setTasks(
+        tasks.map((task) => (task.id === updatedTask.id ? updatedTask : task))
+      );
+    } catch (error) {
+      console.error('Error updating task:', error);
+    }
   };
 
-  const handleDeleteTask = (taskId) => {
-    setTasks(tasks.filter((task) => task.id !== taskId));
+  const handleDeleteTask = async (taskId) => {
+    try {
+      await deleteTask(id, taskId);
+      setTasks(tasks.filter((task) => task.id !== taskId));
+    } catch (error) {
+      console.error('Error deleting task:', error);
+    }
   };
 
   // Pour ouvrir la modal d'ajout de tâche
@@ -153,6 +153,4 @@ const BoardPage = () => {
       <DeleteTaskModal onDeleteTask={handleDeleteTask} />
     </div>
   );
-};
-
-export default BoardPage;
+}

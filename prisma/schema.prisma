@@ -63,9 +63,10 @@ model Board {
 model Task {
   id          String    @id @default(uuid())
   title       String
-  description String?   @default("")
+  description String   @default("")
   status      String    @default("todo")
   dueDate     DateTime?
   boardId     String
   board       Board     @relation("BoardTasks", fields: [boardId], references: [id])
+  
 }

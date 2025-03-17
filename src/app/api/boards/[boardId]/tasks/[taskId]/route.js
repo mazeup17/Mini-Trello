@@ -3,7 +3,7 @@ import prisma from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
-export async function POST(request, { params }) {
+export async function GET(request, { params }) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -11,38 +11,38 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
     }
 
-    const { boardId } = params;
-    const taskData = await request.json();
+    const { boardId, taskId } = params;
 
     // Vérifier que le board appartient à l'utilisateur
     const board = await prisma.board.findUnique({
-      where: { id: boardId },
-    });
-
-    if (!board) {
-      return NextResponse.json({ error: 'Board non trouvé' }, { status: 404 });
-    }
-
-    if (board.userId !== session.user.id) {
-      return NextResponse.json(
-        { error: 'Accès non autorisé' },
-        { status: 403 }
-      );
-    }
-
-    const task = await prisma.task.create({
-      data: {
-        title: taskData.title,
-        description: taskData.description || '',
-        dueDate: taskData.dueDate,
-        status: taskData.status || 'todo',
-        boardId: boardId,
+      where: {
+        id: boardId,
+        userId: session.user.id,
       },
     });
 
+    if (!board) {
+      return NextResponse.json(
+        { error: 'Board non trouvé ou non autorisé' },
+        { status: 404 }
+      );
+    }
+
+    // Récupérer la tâche spécifique
+    const task = await prisma.task.findUnique({
+      where: {
+        id: taskId,
+        boardId,
+      },
+    });
+
+    if (!task) {
+      return NextResponse.json({ error: 'Tâche non trouvée' }, { status: 404 });
+    }
+
     return NextResponse.json(task);
   } catch (error) {
-    console.error('Erreur lors de la création de la tâche:', error);
+    console.error('Erreur lors de la récupération de la tâche:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
@@ -56,37 +56,30 @@ export async function PUT(request, { params }) {
     }
 
     const { boardId, taskId } = params;
-    const taskData = await request.json();
+    const updateData = await request.json();
 
-    // Verify board ownership
+    // Vérifier que le board appartient à l'utilisateur
     const board = await prisma.board.findUnique({
-      where: { id: boardId },
+      where: {
+        id: boardId,
+        userId: session.user.id,
+      },
     });
 
     if (!board) {
-      return NextResponse.json({ error: 'Board non trouvé' }, { status: 404 });
-    }
-
-    if (board.userId !== session.user.id) {
       return NextResponse.json(
-        { error: 'Accès non autorisé' },
-        { status: 403 }
+        { error: 'Board non trouvé ou non autorisé' },
+        { status: 404 }
       );
     }
 
-    // Update task
+    // Mettre à jour la tâche
     const task = await prisma.task.update({
       where: {
         id: taskId,
-        boardId: boardId,
+        boardId,
       },
-      data: {
-        title: taskData.title,
-        description: taskData.description,
-        status: taskData.status,
-        dueDate: taskData.dueDate,
-        columnId: taskData.columnId,
-      },
+      data: updateData,
     });
 
     return NextResponse.json(task);
@@ -99,6 +92,7 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
     }
@@ -107,30 +101,17 @@ export async function DELETE(request, { params }) {
 
     // Vérifier que le board appartient à l'utilisateur
     const board = await prisma.board.findUnique({
-      where: { id: boardId },
-    });
-
-    if (!board) {
-      return NextResponse.json({ error: 'Board non trouvé' }, { status: 404 });
-    }
-
-    if (board.userId !== session.user.id) {
-      return NextResponse.json(
-        { error: 'Accès non autorisé' },
-        { status: 403 }
-      );
-    }
-
-    // Vérifier que la tâche existe
-    const task = await prisma.task.findUnique({
       where: {
-        id: taskId,
-        boardId: boardId,
+        id: boardId,
+        userId: session.user.id,
       },
     });
 
-    if (!task) {
-      return NextResponse.json({ error: 'Tâche non trouvée' }, { status: 404 });
+    if (!board) {
+      return NextResponse.json(
+        { error: 'Board non trouvé ou non autorisé' },
+        { status: 404 }
+      );
     }
 
     // Supprimer la tâche

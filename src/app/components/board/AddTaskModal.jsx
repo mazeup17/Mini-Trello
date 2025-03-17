@@ -17,8 +17,8 @@ export default function AddTaskModal({ onAddTask }) {
 
     const taskData = {
       title: newTaskTitle,
-      description: newTaskDescription.trim() || null,
-      status: columnId,
+      status: String(columnId),
+      description: newTaskDescription.trim() || '',
     };
 
     onAddTask(taskData);
